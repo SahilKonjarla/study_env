@@ -26,6 +26,7 @@ logger = logging.getLogger("pomodoro-agent")
 
 last_mode: str | None = None
 restrictions_active = False
+shutdown_cleanup_done = False
 
 
 def run_command(command: list[str], check: bool = False) -> subprocess.CompletedProcess[str]:
@@ -151,9 +152,14 @@ def cleanup_restrictions() -> None:
 
 
 def handle_shutdown(signum: int | None = None, frame: object | None = None) -> None:
-    if restrictions_active:
-        logger.info("shutdown cleanup")
-        cleanup_restrictions()
+    global shutdown_cleanup_done
+    if shutdown_cleanup_done:
+        if signum is not None:
+            sys.exit(0)
+        return
+    shutdown_cleanup_done = True
+    logger.info("shutdown cleanup")
+    cleanup_restrictions()
     if signum is not None:
         sys.exit(0)
 
