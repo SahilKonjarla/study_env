@@ -1,6 +1,7 @@
 import logging
 import time
 from typing import Any
+from typing import Dict
 from typing import Literal
 
 from fastapi import FastAPI, Query, Request
@@ -23,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-state: dict[str, Any] = {
+state: Dict[str, Any] = {
     "mode": "idle",
     "start_time": None,
     "duration": 0,
@@ -38,7 +39,7 @@ def minutes_to_seconds(minutes: int) -> int:
     return minutes * 60
 
 
-def set_timer(mode: Mode, duration: int = 0) -> dict[str, Mode | int]:
+def set_timer(mode: Mode, duration: int = 0) -> Dict[str, Any]:
     state["mode"] = mode
     state["duration"] = duration
     state["start_time"] = time.time() if mode != "idle" else None
@@ -60,7 +61,7 @@ def finish_break_timer() -> None:
     logger.info("break complete; returning to idle")
 
 
-def status() -> dict[str, Mode | int | float | None]:
+def status() -> Dict[str, Any]:
     mode = state["mode"]
     start_time = state["start_time"]
     duration = int(state["duration"] or 0)
@@ -90,38 +91,38 @@ def status() -> dict[str, Mode | int | float | None]:
 def start(
     focus_minutes: int = Query(25, ge=1, le=240),
     break_minutes: int = Query(5, ge=1, le=120),
-) -> dict[str, Mode | int]:
+) -> Dict[str, Any]:
     state["focus_duration"] = minutes_to_seconds(focus_minutes)
     state["break_duration"] = minutes_to_seconds(break_minutes)
     return set_timer("focus", int(state["focus_duration"] or 1500))
 
 
 @app.get("/pause")
-def pause() -> dict[str, Mode | int]:
+def pause() -> Dict[str, Any]:
     return set_timer("idle")
 
 
 @app.get("/break")
 def start_break(
     break_minutes: int = Query(5, ge=1, le=120),
-) -> dict[str, Mode | int]:
+) -> Dict[str, Any]:
     state["break_duration"] = minutes_to_seconds(break_minutes)
     return set_timer("break", int(state["break_duration"] or 300))
 
 
 @app.get("/reset")
-def reset() -> dict[str, Mode | int]:
+def reset() -> Dict[str, Any]:
     return set_timer("idle")
 
 
 @app.get("/status")
-def get_status() -> dict[str, Mode | int | float | None]:
+def get_status() -> Dict[str, Any]:
     return status()
 
 
 @app.post("/agent/heartbeat")
-async def agent_heartbeat(request: Request) -> dict[str, str | float]:
-    payload: dict[str, Any] = {}
+async def agent_heartbeat(request: Request) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
     try:
         payload = await request.json()
     except Exception:
@@ -134,7 +135,7 @@ async def agent_heartbeat(request: Request) -> dict[str, str | float]:
 
 
 @app.get("/agent/status")
-def get_agent_status() -> dict[str, bool | int | float | str | None]:
+def get_agent_status() -> Dict[str, Any]:
     last_seen = state["agent_last_seen"]
     seconds_since_seen = None
     online = False

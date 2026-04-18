@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import time
+from typing import Dict, List, Optional
 import urllib.error
 import urllib.request
 
@@ -18,6 +19,15 @@ HOSTS_PATH = "/etc/hosts"
 MANAGED_START = "# POMODORO_CONTROL_START"
 MANAGED_END = "# POMODORO_CONTROL_END"
 BLOCKED_DOMAINS = ("youtube.com", "www.youtube.com", "netflix.com", "www.netflix.com", "hulu.com", "www.hulu.com")
+FOCUS_NAME = os.environ.get("POMODORO_FOCUS_NAME") or "Work"
+FOCUS_ON_SHORTCUTS = (
+    os.environ.get("POMODORO_FOCUS_ON_SHORTCUT") or "Pomodoro Work Focus On",
+    os.environ.get("POMODORO_DND_ON_SHORTCUT") or "Pomodoro Focus On",
+)
+FOCUS_OFF_SHORTCUTS = (
+    os.environ.get("POMODORO_FOCUS_OFF_SHORTCUT") or "Pomodoro Work Focus Off",
+    os.environ.get("POMODORO_DND_OFF_SHORTCUT") or "Pomodoro Focus Off",
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,17 +35,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pomodoro-agent")
 
-last_mode: str | None = None
+last_mode: Optional[str] = None
 restrictions_active = False
 shutdown_cleanup_done = False
 
 
-def run_command(command: list[str], check: bool = False) -> subprocess.CompletedProcess[str]:
+def run_command(command: List[str], check: bool = False) -> subprocess.CompletedProcess:
     logger.debug("running command: %s", " ".join(command))
     return subprocess.run(command, capture_output=True, check=check, text=True)
 
 
-def run_user_command(command: list[str]) -> subprocess.CompletedProcess[str]:
+def run_user_command(command: List[str]) -> subprocess.CompletedProcess:
     sudo_user = os.environ.get("SUDO_USER")
     if not sudo_user or sudo_user == "root":
         return run_command(command)
@@ -45,13 +55,17 @@ def run_user_command(command: list[str]) -> subprocess.CompletedProcess[str]:
     return run_command(user_command)
 
 
+def open_user_url(url: str) -> subprocess.CompletedProcess:
+    return run_user_command(["open", url])
+
+
 def require_sudo_for_hosts() -> None:
     if os.geteuid() != 0:
         logger.error("Run with sudo to allow safe /etc/hosts updates: sudo python3 agent.py")
         sys.exit(1)
 
 
-def fetch_status() -> dict[str, object] | None:
+def fetch_status() -> Optional[Dict[str, object]]:
     try:
         with urllib.request.urlopen(f"{BACKEND_URL}/status", timeout=5) as response:
             return json.loads(response.read().decode("utf-8"))
@@ -75,9 +89,33 @@ def send_heartbeat() -> None:
         logger.warning("heartbeat failed: %s", exc)
 
 
+def list_shortcuts() -> List[str]:
+    result = run_user_command(["shortcuts", "list"])
+    if result.returncode != 0:
+        logger.warning("could not list Shortcuts: %s", result.stderr.strip())
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def log_shortcuts_status() -> bool:
+    shortcuts = set(list_shortcuts())
+    on_found = next((name for name in FOCUS_ON_SHORTCUTS if name in shortcuts), None)
+    off_found = next((name for name in FOCUS_OFF_SHORTCUTS if name in shortcuts), None)
+
+    if on_found and off_found:
+        logger.info("%s Focus shortcuts found: on=%r off=%r", FOCUS_NAME, on_found, off_found)
+        return True
+
+    logger.warning("missing Focus shortcuts")
+    logger.warning("create shortcuts named %r and %r", FOCUS_ON_SHORTCUTS[0], FOCUS_OFF_SHORTCUTS[0])
+    logger.warning("each shortcut should use Apple's Set Focus action for the %r Focus", FOCUS_NAME)
+    logger.warning("override names with POMODORO_FOCUS_ON_SHORTCUT and POMODORO_FOCUS_OFF_SHORTCUT")
+    return False
+
+
 def remove_managed_hosts_block(hosts_text: str) -> str:
     lines = hosts_text.splitlines()
-    cleaned: list[str] = []
+    cleaned: List[str] = []
     inside_block = False
 
     for line in lines:
@@ -129,32 +167,30 @@ def flush_dns_cache() -> None:
     logger.info("dns cache flush attempted")
 
 
-def enable_dnd() -> None:
-    commands = [
-        ["shortcuts", "run", "Turn On Do Not Disturb"],
-        ["defaults", "-currentHost", "write", "com.apple.notificationcenterui", "doNotDisturb", "-bool", "true"],
-    ]
-    for command in commands:
+def enable_focus() -> None:
+    shortcut_commands = [["shortcuts", "run", name] for name in FOCUS_ON_SHORTCUTS]
+    for command in shortcut_commands:
         result = run_user_command(command)
         if result.returncode == 0:
-            logger.info("do not disturb enabled")
+            logger.info("%s Focus enabled via %s", FOCUS_NAME, " ".join(command))
             return
-        logger.debug("dnd enable failed for %s: %s", command[0], result.stderr.strip())
-    logger.warning("could not enable Do Not Disturb automatically; continuing")
+        logger.warning("Focus enable command failed: %s", " ".join(command))
+        if result.stderr.strip():
+            logger.warning("Focus enable stderr: %s", result.stderr.strip())
+    logger.warning("could not enable %s Focus automatically; continuing", FOCUS_NAME)
 
 
-def disable_dnd() -> None:
-    commands = [
-        ["shortcuts", "run", "Turn Off Do Not Disturb"],
-        ["defaults", "-currentHost", "write", "com.apple.notificationcenterui", "doNotDisturb", "-bool", "false"],
-    ]
-    for command in commands:
+def disable_focus() -> None:
+    shortcut_commands = [["shortcuts", "run", name] for name in FOCUS_OFF_SHORTCUTS]
+    for command in shortcut_commands:
         result = run_user_command(command)
         if result.returncode == 0:
-            logger.info("do not disturb disabled")
+            logger.info("%s Focus disabled via %s", FOCUS_NAME, " ".join(command))
             return
-        logger.debug("dnd disable failed for %s: %s", command[0], result.stderr.strip())
-    logger.warning("could not disable Do Not Disturb automatically; continuing cleanup")
+        logger.warning("Focus disable command failed: %s", " ".join(command))
+        if result.stderr.strip():
+            logger.warning("Focus disable stderr: %s", result.stderr.strip())
+    logger.warning("could not disable %s Focus automatically; continuing cleanup", FOCUS_NAME)
 
 
 def kill_discord() -> None:
@@ -167,7 +203,7 @@ def kill_discord() -> None:
 
 def apply_focus() -> None:
     global restrictions_active
-    enable_dnd()
+    enable_focus()
     kill_discord()
     write_hosts_block(enable=True)
     restrictions_active = True
@@ -175,12 +211,12 @@ def apply_focus() -> None:
 
 def cleanup_restrictions() -> None:
     global restrictions_active
-    disable_dnd()
+    disable_focus()
     write_hosts_block(enable=False)
     restrictions_active = False
 
 
-def handle_shutdown(signum: int | None = None, frame: object | None = None) -> None:
+def handle_shutdown(signum: Optional[int] = None, frame: object = None) -> None:
     global shutdown_cleanup_done
     if shutdown_cleanup_done:
         if signum is not None:
@@ -209,6 +245,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="remove restrictions and exit without polling the backend",
     )
+    parser.add_argument(
+        "--check-shortcuts",
+        action="store_true",
+        help="verify the Focus Shortcuts used for macOS Focus and exit",
+    )
+    parser.add_argument(
+        "--open-shortcuts",
+        action="store_true",
+        help="open the Shortcuts app and Focus settings, then exit",
+    )
     return parser.parse_args()
 
 
@@ -216,6 +262,17 @@ def main() -> None:
     global last_mode
 
     args = parse_args()
+
+    if args.open_shortcuts:
+        open_user_url("shortcuts://")
+        open_user_url("x-apple.systempreferences:com.apple.preference.notifications")
+        return
+
+    if args.check_shortcuts:
+        if log_shortcuts_status():
+            return
+        sys.exit(1)
+
     require_sudo_for_hosts()
 
     if args.cleanup:
@@ -228,6 +285,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, handle_shutdown)
 
     logger.info("polling %s every %s seconds", BACKEND_URL, POLL_SECONDS)
+    log_shortcuts_status()
     startup_status = fetch_status()
     if startup_status is None or startup_status.get("mode") != "focus":
         cleanup_restrictions()

@@ -62,5 +62,12 @@ FRONTEND_PID="$!"
 
 sleep 2
 
+echo "Checking macOS Focus Shortcuts..."
+if ! "$PYTHON_BIN" "$ROOT/agent.py" --check-shortcuts; then
+  echo "Focus Shortcuts are missing or named differently."
+  echo "Run scripts/setup_focus_shortcuts.sh to open the setup pages."
+  echo "The agent will still run and enforce website blocking."
+fi
+
 echo "Starting macOS agent. Press Ctrl+C here to reset and stop everything."
 sudo POMODORO_BACKEND_URL="$API_URL" "$PYTHON_BIN" "$ROOT/agent.py"

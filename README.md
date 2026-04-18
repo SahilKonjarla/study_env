@@ -60,21 +60,46 @@ sudo python3 agent.py --cleanup
 
 Focus mode:
 
-- Best-effort Do Not Disturb enable
+- Best-effort macOS `Work` Focus enable
 - Kills Discord
 - Blocks `youtube.com`, `netflix.com`, and `hulu.com` through a managed `/etc/hosts` block
 
 Idle, pause, reset, and break:
 
-- Best-effort Do Not Disturb disable
+- Best-effort macOS `Work` Focus disable
 - Removes all managed `/etc/hosts` entries immediately
 - Flushes the macOS DNS cache after hosts changes
 
-Do Not Disturb automation differs by macOS version. For best results, create Shortcuts named exactly `Turn On Do Not Disturb` and `Turn Off Do Not Disturb`; the agent also tries the older `defaults` fallback.
+macOS Focus automation differs by macOS version. This project uses your Focus named `Work`. Create Shortcuts named exactly `Pomodoro Work Focus On` and `Pomodoro Work Focus Off`.
+
+Open the setup pages:
+
+```bash
+scripts/setup_focus_shortcuts.sh
+```
+
+Create:
+
+- `Pomodoro Work Focus On`: use Apple's `Set Focus` action to turn on `Work` until turned off
+- `Pomodoro Work Focus Off`: use Apple's `Set Focus` action to turn off `Work`
+
+Verify:
+
+```bash
+/usr/bin/python3 agent.py --check-shortcuts
+```
+
+If you already have different Shortcut names:
+
+```bash
+POMODORO_FOCUS_ON_SHORTCUT="Your On Shortcut" POMODORO_FOCUS_OFF_SHORTCUT="Your Off Shortcut" sudo -E python3 agent.py
+```
+
+If your Focus is not named `Work`, set `POMODORO_FOCUS_NAME` for clearer logs and point the shortcuts at the Focus you want.
 
 The agent always attempts cleanup on `Ctrl+C`:
 
-- disables Do Not Disturb best-effort
+- disables the `Work` Focus best-effort
 - removes the managed `/etc/hosts` block
 
 It can also clean up stale restrictions on startup.
