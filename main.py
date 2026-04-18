@@ -1,8 +1,9 @@
 import logging
 import time
+from typing import Any
 from typing import Literal
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -18,16 +19,18 @@ app = FastAPI(title="Pomodoro Control System")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
-state: dict[str, Mode | float | int | None] = {
+state: dict[str, Any] = {
     "mode": "idle",
     "start_time": None,
     "duration": 0,
     "focus_duration": 1500,
     "break_duration": 300,
+    "agent_last_seen": None,
+    "agent_name": None,
 }
 
 
@@ -50,7 +53,14 @@ def start_break_timer() -> None:
     logger.info("focus complete; auto-starting break duration=%s", state["duration"])
 
 
-def status() -> dict[str, Mode | int]:
+def finish_break_timer() -> None:
+    state["mode"] = "idle"
+    state["duration"] = 0
+    state["start_time"] = None
+    logger.info("break complete; returning to idle")
+
+
+def status() -> dict[str, Mode | int | float | None]:
     mode = state["mode"]
     start_time = state["start_time"]
     duration = int(state["duration"] or 0)
@@ -64,6 +74,9 @@ def status() -> dict[str, Mode | int]:
             mode = state["mode"]
             duration = int(state["duration"] or 0)
             remaining_time = duration
+        elif mode == "break" and remaining_time == 0:
+            finish_break_timer()
+            mode = state["mode"]
 
     return {
         "mode": mode,
@@ -102,5 +115,37 @@ def reset() -> dict[str, Mode | int]:
 
 
 @app.get("/status")
-def get_status() -> dict[str, Mode | int]:
+def get_status() -> dict[str, Mode | int | float | None]:
     return status()
+
+
+@app.post("/agent/heartbeat")
+async def agent_heartbeat(request: Request) -> dict[str, str | float]:
+    payload: dict[str, Any] = {}
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    state["agent_last_seen"] = time.time()
+    state["agent_name"] = payload.get("name") or "mac-agent"
+    logger.info("agent heartbeat name=%s", state["agent_name"])
+    return {"ok": "true", "last_seen": state["agent_last_seen"]}
+
+
+@app.get("/agent/status")
+def get_agent_status() -> dict[str, bool | int | float | str | None]:
+    last_seen = state["agent_last_seen"]
+    seconds_since_seen = None
+    online = False
+
+    if last_seen is not None:
+        seconds_since_seen = int(time.time() - float(last_seen))
+        online = seconds_since_seen <= 15
+
+    return {
+        "online": online,
+        "last_seen": last_seen,
+        "seconds_since_seen": seconds_since_seen,
+        "agent_name": state["agent_name"],
+    }

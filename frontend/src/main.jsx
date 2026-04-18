@@ -21,17 +21,27 @@ function App() {
   const [remainingTime, setRemainingTime] = useState(0);
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
+  const [agentStatus, setAgentStatus] = useState(null);
   const [error, setError] = useState("");
 
   async function refreshStatus() {
     try {
-      const response = await fetch(`${API_BASE_URL}/status`);
+      const [statusResponse, agentResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/status`),
+        fetch(`${API_BASE_URL}/agent/status`),
+      ]);
+      const response = statusResponse;
       if (!response.ok) {
         throw new Error(`status ${response.status}`);
       }
+      if (!agentResponse.ok) {
+        throw new Error(`agent ${agentResponse.status}`);
+      }
       const data = await response.json();
+      const agentData = await agentResponse.json();
       setMode(data.mode);
       setRemainingTime(data.remaining_time);
+      setAgentStatus(agentData);
       setError("");
     } catch (err) {
       setError(`Backend unavailable: ${err.message}`);
@@ -76,6 +86,12 @@ function App() {
       <section className="panel" aria-label="Pomodoro controls">
         <p className="label">Mode</p>
         <h1>{mode}</h1>
+        <p className={agentStatus?.online ? "agent online" : "agent offline"}>
+          Agent {agentStatus?.online ? "connected" : "offline"}
+          {agentStatus?.seconds_since_seen !== null && agentStatus?.seconds_since_seen !== undefined
+            ? ` - last seen ${agentStatus.seconds_since_seen}s ago`
+            : ""}
+        </p>
         <div className="timer">{formatTime(remainingTime)}</div>
         <div className="settings">
           <label>
@@ -105,6 +121,9 @@ function App() {
           <button onClick={() => sendCommand("break")}>Break</button>
           <button onClick={() => sendCommand("reset")}>Reset</button>
         </div>
+        <button className="cleanup" onClick={() => sendCommand("reset")}>
+          Remove Restrictions
+        </button>
         {error && <p className="error">{error}</p>}
       </section>
     </main>

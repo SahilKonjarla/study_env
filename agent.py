@@ -1,4 +1,5 @@
 import atexit
+import argparse
 import json
 import logging
 import os
@@ -59,6 +60,21 @@ def fetch_status() -> dict[str, object] | None:
         return None
 
 
+def send_heartbeat() -> None:
+    payload = json.dumps({"name": os.uname().nodename}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{BACKEND_URL}/agent/heartbeat",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5):
+            logger.debug("heartbeat sent")
+    except (urllib.error.URLError, TimeoutError) as exc:
+        logger.warning("heartbeat failed: %s", exc)
+
+
 def remove_managed_hosts_block(hosts_text: str) -> str:
     lines = hosts_text.splitlines()
     cleaned: list[str] = []
@@ -98,6 +114,19 @@ def write_hosts_block(enable: bool) -> None:
         hosts_file.write(next_hosts)
 
     logger.info("hosts %s", "blocked" if enable else "unblocked")
+    flush_dns_cache()
+
+
+def flush_dns_cache() -> None:
+    commands = [
+        ["dscacheutil", "-flushcache"],
+        ["killall", "-HUP", "mDNSResponder"],
+    ]
+    for command in commands:
+        result = run_command(command)
+        if result.returncode != 0:
+            logger.debug("dns cache command failed for %s: %s", command[0], result.stderr.strip())
+    logger.info("dns cache flush attempted")
 
 
 def enable_dnd() -> None:
@@ -173,10 +202,27 @@ def enforce_mode(mode: str) -> None:
         cleanup_restrictions()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Pomodoro macOS enforcement agent")
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="remove restrictions and exit without polling the backend",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     global last_mode
 
+    args = parse_args()
     require_sudo_for_hosts()
+
+    if args.cleanup:
+        logger.info("cleanup-only mode")
+        cleanup_restrictions()
+        return
+
     atexit.register(handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
@@ -192,6 +238,7 @@ def main() -> None:
             time.sleep(POLL_SECONDS)
             continue
 
+        send_heartbeat()
         mode = str(status.get("mode", "idle"))
         if mode != last_mode:
             enforce_mode(mode)
