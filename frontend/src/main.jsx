@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const ALARM_TRANSITIONS = new Set(["focus:break", "break:idle"]);
 
 function positiveInteger(value, fallback) {
   const number = Number.parseInt(value, 10);
@@ -22,7 +23,70 @@ function App() {
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
   const [agentStatus, setAgentStatus] = useState(null);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const [error, setError] = useState("");
+  const modeRef = useRef("idle");
+  const audioContextRef = useRef(null);
+
+  async function enableSound() {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) {
+      setError("Audio is not supported in this browser");
+      return false;
+    }
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+    }
+
+    if (audioContextRef.current.state === "suspended") {
+      await audioContextRef.current.resume();
+    }
+
+    setSoundEnabled(true);
+    return true;
+  }
+
+  function playAlarm() {
+    const audioContext = audioContextRef.current;
+    if (!soundEnabled || !audioContext) {
+      return;
+    }
+
+    const now = audioContext.currentTime;
+    const notes = [660, 880, 660];
+
+    notes.forEach((frequency, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const start = now + index * 0.22;
+      const stop = start + 0.16;
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.2, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, stop);
+
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(start);
+      oscillator.stop(stop);
+    });
+  }
+
+  function applyStatus(data) {
+    const previousMode = modeRef.current;
+    const nextMode = data.mode;
+
+    setMode(nextMode);
+    setRemainingTime(data.remaining_time);
+    modeRef.current = nextMode;
+
+    if (ALARM_TRANSITIONS.has(`${previousMode}:${nextMode}`)) {
+      playAlarm();
+    }
+  }
 
   async function refreshStatus() {
     try {
@@ -39,8 +103,7 @@ function App() {
       }
       const data = await response.json();
       const agentData = await agentResponse.json();
-      setMode(data.mode);
-      setRemainingTime(data.remaining_time);
+      applyStatus(data);
       setAgentStatus(agentData);
       setError("");
     } catch (err) {
@@ -62,13 +125,15 @@ function App() {
 
   async function sendCommand(command) {
     try {
+      if (command === "start" && !soundEnabled) {
+        await enableSound();
+      }
       const response = await fetch(commandUrl(command));
       if (!response.ok) {
         throw new Error(`${command} ${response.status}`);
       }
       const data = await response.json();
-      setMode(data.mode);
-      setRemainingTime(data.remaining_time);
+      applyStatus(data);
       setError("");
     } catch (err) {
       setError(`Command failed: ${err.message}`);
@@ -121,6 +186,9 @@ function App() {
           <button onClick={() => sendCommand("break")}>Break</button>
           <button onClick={() => sendCommand("reset")}>Reset</button>
         </div>
+        <button className="sound" onClick={enableSound}>
+          {soundEnabled ? "Sound Enabled" : "Enable Sound"}
+        </button>
         <button className="cleanup" onClick={() => sendCommand("reset")}>
           Remove Restrictions
         </button>

@@ -129,6 +129,17 @@ button:hover {
   background: #46515d;
 }
 
+.sound {
+  width: 100%;
+  margin-top: 10px;
+  background: #35677a;
+  color: #f8fafc;
+}
+
+.sound:hover {
+  background: #43829a;
+}
+
 .error {
   margin: 18px 0 0;
   color: #ff7a7a;
