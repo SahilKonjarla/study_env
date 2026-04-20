@@ -30,6 +30,8 @@ state: Dict[str, Any] = {
     "duration": 0,
     "focus_duration": 1500,
     "break_duration": 300,
+    "repeat_enabled": False,
+    "cycle_count": 0,
     "agent_last_seen": None,
     "agent_name": None,
     "agent_closed_apps": [],
@@ -57,10 +59,23 @@ def start_break_timer() -> None:
     logger.info("focus complete; auto-starting break duration=%s", state["duration"])
 
 
+def restart_focus_timer() -> None:
+    state["mode"] = "focus"
+    state["duration"] = int(state["focus_duration"] or 1500)
+    state["start_time"] = time.time()
+    state["cycle_count"] = int(state["cycle_count"] or 0) + 1
+    logger.info(
+        "break complete; repeat enabled; auto-starting focus duration=%s cycle_count=%s",
+        state["duration"],
+        state["cycle_count"],
+    )
+
+
 def finish_break_timer() -> None:
     state["mode"] = "idle"
     state["duration"] = 0
     state["start_time"] = None
+    state["repeat_enabled"] = False
     logger.info("break complete; returning to idle")
 
 
@@ -79,14 +94,21 @@ def status() -> Dict[str, Any]:
             duration = int(state["duration"] or 0)
             remaining_time = duration
         elif mode == "break" and remaining_time == 0:
-            finish_break_timer()
+            if state["repeat_enabled"]:
+                restart_focus_timer()
+            else:
+                finish_break_timer()
             mode = state["mode"]
+            duration = int(state["duration"] or 0)
+            remaining_time = duration if mode != "idle" else 0
 
     return {
         "mode": mode,
         "remaining_time": remaining_time,
         "focus_duration": int(state["focus_duration"] or 1500),
         "break_duration": int(state["break_duration"] or 300),
+        "repeat_enabled": bool(state["repeat_enabled"]),
+        "cycle_count": int(state["cycle_count"] or 0),
     }
 
 
@@ -94,14 +116,18 @@ def status() -> Dict[str, Any]:
 def start(
     focus_minutes: int = Query(25, ge=1, le=240),
     break_minutes: int = Query(5, ge=1, le=120),
+    repeat: bool = Query(False),
 ) -> Dict[str, Any]:
     state["focus_duration"] = minutes_to_seconds(focus_minutes)
     state["break_duration"] = minutes_to_seconds(break_minutes)
+    state["repeat_enabled"] = repeat
+    state["cycle_count"] = 1
     return set_timer("focus", int(state["focus_duration"] or 1500))
 
 
 @app.get("/pause")
 def pause() -> Dict[str, Any]:
+    state["repeat_enabled"] = False
     return set_timer("idle")
 
 
@@ -109,12 +135,15 @@ def pause() -> Dict[str, Any]:
 def start_break(
     break_minutes: int = Query(5, ge=1, le=120),
 ) -> Dict[str, Any]:
+    state["repeat_enabled"] = False
     state["break_duration"] = minutes_to_seconds(break_minutes)
     return set_timer("break", int(state["break_duration"] or 300))
 
 
 @app.get("/reset")
 def reset() -> Dict[str, Any]:
+    state["repeat_enabled"] = False
+    state["cycle_count"] = 0
     return set_timer("idle")
 
 

@@ -150,6 +150,26 @@ input:focus {
   outline: 2px solid rgba(97, 216, 169, 0.24);
 }
 
+.repeat-row {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  border: 1px solid #38342d;
+  border-radius: 8px;
+  background: #141411;
+  color: #f4f1ea;
+  padding: 12px 14px;
+}
+
+.repeat-row input {
+  width: 20px;
+  min-height: 20px;
+  accent-color: #21a67a;
+  flex: 0 0 auto;
+}
+
 .actions,
 .utility-actions {
   display: grid;

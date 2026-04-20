@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const ALARM_TRANSITIONS = new Set(["focus:break", "break:idle"]);
+const ALARM_TRANSITIONS = new Set(["focus:break", "break:idle", "break:focus"]);
 
 function positiveInteger(value, fallback) {
   const number = Number.parseInt(value, 10);
@@ -22,6 +22,8 @@ function App() {
   const [remainingTime, setRemainingTime] = useState(0);
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [cycleCount, setCycleCount] = useState(0);
   const [agentStatus, setAgentStatus] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [error, setError] = useState("");
@@ -81,6 +83,8 @@ function App() {
 
     setMode(nextMode);
     setRemainingTime(data.remaining_time);
+    setRepeatEnabled(Boolean(data.repeat_enabled));
+    setCycleCount(data.cycle_count || 0);
     modeRef.current = nextMode;
 
     if (ALARM_TRANSITIONS.has(`${previousMode}:${nextMode}`)) {
@@ -116,6 +120,7 @@ function App() {
     if (command === "start") {
       url.searchParams.set("focus_minutes", positiveInteger(focusMinutes, 25));
       url.searchParams.set("break_minutes", positiveInteger(breakMinutes, 5));
+      url.searchParams.set("repeat", repeatEnabled ? "true" : "false");
     }
     if (command === "break") {
       url.searchParams.set("break_minutes", positiveInteger(breakMinutes, 5));
@@ -161,8 +166,8 @@ function App() {
           </div>
           <div className="timer">{formatTime(remainingTime)}</div>
           <p className="status-line">
-            {mode === "focus" && "Restrictions active"}
-            {mode === "break" && "Break running"}
+            {mode === "focus" && `Restrictions active${repeatEnabled ? ` - cycle ${cycleCount}` : ""}`}
+            {mode === "break" && `Break running${repeatEnabled ? " - repeat is on" : ""}`}
             {mode === "idle" && "Ready when you are"}
           </p>
         </div>
@@ -190,6 +195,15 @@ function App() {
               />
             </label>
           </div>
+
+          <label className="repeat-row">
+            <input
+              type="checkbox"
+              checked={repeatEnabled}
+              onChange={(event) => setRepeatEnabled(event.target.checked)}
+            />
+            Repeat focus and break until I stop it
+          </label>
 
           <div className="actions">
             <button className="primary" onClick={() => sendCommand("start")}>Start Focus</button>

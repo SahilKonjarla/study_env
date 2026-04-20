@@ -26,6 +26,7 @@ Endpoints:
 
 - `GET /start` starts a focus session and then automatically starts break when focus expires
 - `GET /start?focus_minutes=50&break_minutes=10` starts a 50 minute focus session followed by a 10 minute break
+- `GET /start?focus_minutes=50&break_minutes=10&repeat=true` repeats focus and break until `/pause` or `/reset`
 - `GET /pause` returns to idle and triggers cleanup through the agent
 - `GET /break` starts a 5 minute break and triggers cleanup through the agent
 - `GET /break?break_minutes=10` starts a 10 minute break
@@ -34,7 +35,7 @@ Endpoints:
 - `POST /agent/heartbeat` records that the macOS agent is alive
 - `GET /agent/status` returns agent connectivity state
 
-When focus expires, the backend switches to break automatically. When break expires, the backend returns to idle automatically.
+When focus expires, the backend switches to break automatically. When break expires, the backend returns to idle unless repeat is enabled. With repeat enabled, break expiration starts the next focus cycle.
 
 State is in memory only. Restarting the backend resets it.
 
@@ -145,7 +146,7 @@ VITE_API_BASE_URL=http://PI_IP_ADDRESS:8000 npm run dev
 
 Open the Vite URL printed by `npm run dev`.
 
-Set focus minutes and break minutes in the UI before pressing Start. When focus time reaches zero, the backend switches to break automatically. The agent sees `mode="break"` on its next poll and removes all restrictions.
+Set focus minutes and break minutes in the UI before pressing Start. Turn on repeat if you want focus and break to alternate until you press `Pause`, `Reset`, or `Remove Restrictions`. When focus time reaches zero, the backend switches to break automatically. The agent sees `mode="break"` on its next poll and removes all restrictions.
 
 The UI also shows whether the macOS agent is connected. Use `Remove Restrictions` for an explicit reset/cleanup request.
 
