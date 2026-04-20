@@ -77,13 +77,16 @@ function App() {
     });
   }
 
-  function applyStatus(data) {
+  function applyStatus(data, options = {}) {
     const previousMode = modeRef.current;
     const nextMode = data.mode;
+    const shouldSyncRepeat = options.forceSyncRepeat || nextMode !== "idle" || previousMode !== "idle";
 
     setMode(nextMode);
     setRemainingTime(data.remaining_time);
-    setRepeatEnabled(Boolean(data.repeat_enabled));
+    if (shouldSyncRepeat) {
+      setRepeatEnabled(Boolean(data.repeat_enabled));
+    }
     setCycleCount(data.cycle_count || 0);
     modeRef.current = nextMode;
 
@@ -138,7 +141,7 @@ function App() {
         throw new Error(`${command} ${response.status}`);
       }
       const data = await response.json();
-      applyStatus(data);
+      applyStatus(data, { forceSyncRepeat: true });
       setError("");
     } catch (err) {
       setError(`Command failed: ${err.message}`);
