@@ -32,6 +32,8 @@ state: Dict[str, Any] = {
     "break_duration": 300,
     "agent_last_seen": None,
     "agent_name": None,
+    "agent_closed_apps": [],
+    "agent_reopened_apps": [],
 }
 
 
@@ -40,10 +42,11 @@ def minutes_to_seconds(minutes: int) -> int:
 
 
 def set_timer(mode: Mode, duration: int = 0) -> Dict[str, Any]:
+    previous_mode = state["mode"]
     state["mode"] = mode
     state["duration"] = duration
     state["start_time"] = time.time() if mode != "idle" else None
-    logger.info("mode=%s duration=%s", mode, duration)
+    logger.info("timer state change previous=%s current=%s duration=%s", previous_mode, mode, duration)
     return status()
 
 
@@ -130,7 +133,14 @@ async def agent_heartbeat(request: Request) -> Dict[str, Any]:
 
     state["agent_last_seen"] = time.time()
     state["agent_name"] = payload.get("name") or "mac-agent"
-    logger.info("agent heartbeat name=%s", state["agent_name"])
+    state["agent_closed_apps"] = payload.get("closed_apps") or []
+    state["agent_reopened_apps"] = payload.get("reopened_apps") or []
+    logger.info(
+        "agent heartbeat name=%s closed_apps=%s reopened_apps=%s",
+        state["agent_name"],
+        state["agent_closed_apps"],
+        state["agent_reopened_apps"],
+    )
     return {"ok": "true", "last_seen": state["agent_last_seen"]}
 
 
@@ -149,4 +159,6 @@ def get_agent_status() -> Dict[str, Any]:
         "last_seen": last_seen,
         "seconds_since_seen": seconds_since_seen,
         "agent_name": state["agent_name"],
+        "closed_apps": state["agent_closed_apps"],
+        "reopened_apps": state["agent_reopened_apps"],
     }

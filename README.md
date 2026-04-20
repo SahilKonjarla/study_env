@@ -46,6 +46,16 @@ Run this on the Mac. It needs `sudo` because it safely edits only its managed bl
 sudo POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 python3 agent.py
 ```
 
+`agent.py` is a small compatibility entrypoint. The readable implementation lives in `pomodoro_agent/`:
+
+- `config.py`: environment config and defaults
+- `runtime.py`: polling loop and shutdown cleanup
+- `backend.py`: backend status, heartbeat, reset calls
+- `hosts.py`: managed `/etc/hosts` block
+- `apps.py`: blocked app close/reopen logic
+- `focus.py`: macOS Focus Shortcuts
+- `commands.py`: subprocess helpers
+
 Optional poll interval:
 
 ```bash
@@ -61,13 +71,30 @@ sudo python3 agent.py --cleanup
 Focus mode:
 
 - Best-effort macOS `Work` Focus enable
-- Kills Discord
-- Blocks `youtube.com`, `netflix.com`, and `hulu.com` through a managed `/etc/hosts` block
+- Closes blocked apps every poll cycle. Default: `Discord`, `Messages`, `Mail`
+- Blocks `youtube.com`, `netflix.com`, `hulu.com`, and `twitch.tv` through a managed `/etc/hosts` block
+
+Customize blocked apps:
+
+```bash
+POMODORO_BLOCKED_APPS="Discord,Messages,Mail,Steam" POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 scripts/run_mac_for_pi.sh
+```
+
+Use exact macOS process names. The agent checks the list during focus mode and closes matching apps again if you reopen them.
+
+When focus ends, the agent reopens the apps in `POMODORO_REOPEN_APPS`. By default, this is the same list as `POMODORO_BLOCKED_APPS`.
+
+Customize reopen apps:
+
+```bash
+POMODORO_BLOCKED_APPS="Discord,Messages,Mail" POMODORO_REOPEN_APPS="Messages,Mail" POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 scripts/run_mac_for_pi.sh
+```
 
 Idle, pause, reset, and break:
 
 - Best-effort macOS `Work` Focus disable
 - Removes all managed `/etc/hosts` entries immediately
+- Reopens configured apps when leaving an active focus session
 - Flushes the macOS DNS cache after hosts changes
 
 macOS Focus automation differs by macOS version. This project uses your Focus named `Work`. Create Shortcuts named exactly `Pomodoro Work Focus On` and `Pomodoro Work Focus Off`.
@@ -99,12 +126,14 @@ If your Focus is not named `Work`, set `POMODORO_FOCUS_NAME` for clearer logs an
 
 The agent always attempts cleanup on `Ctrl+C`:
 
+- calls backend `/reset`
 - disables the `Work` Focus best-effort
 - removes the managed `/etc/hosts` block
+- reopens configured apps if an active focus session was being enforced
 
-It can also clean up stale restrictions on startup.
+It can also clean up stale restrictions on startup. If the polling loop crashes unexpectedly, the agent logs the exception, calls backend `/reset`, removes restrictions, and reopens configured apps before exiting.
 
-The agent sends a heartbeat to the backend each poll cycle. The frontend uses this to show whether enforcement is connected.
+The agent sends a heartbeat to the backend each poll cycle. The frontend uses this to show whether enforcement is connected. Heartbeats also include any blocked apps closed or reopened during that poll.
 
 ## Frontend
 
@@ -121,6 +150,8 @@ Set focus minutes and break minutes in the UI before pressing Start. When focus 
 The UI also shows whether the macOS agent is connected. Use `Remove Restrictions` for an explicit reset/cleanup request.
 
 If `VITE_API_BASE_URL` is not set, the frontend defaults to `http://127.0.0.1:8000`.
+
+The frontend has an `Enable Sound` button. Once enabled, it plays a short placeholder chime when focus changes to break or break changes to idle. A song file can be added later.
 
 ## One-Command Local Run
 

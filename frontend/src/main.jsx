@@ -148,51 +148,66 @@ function App() {
 
   return (
     <main>
-      <section className="panel" aria-label="Pomodoro controls">
-        <p className="label">Mode</p>
-        <h1>{mode}</h1>
-        <p className={agentStatus?.online ? "agent online" : "agent offline"}>
-          Agent {agentStatus?.online ? "connected" : "offline"}
-          {agentStatus?.seconds_since_seen !== null && agentStatus?.seconds_since_seen !== undefined
-            ? ` - last seen ${agentStatus.seconds_since_seen}s ago`
-            : ""}
-        </p>
-        <div className="timer">{formatTime(remainingTime)}</div>
-        <div className="settings">
-          <label>
-            Focus minutes
-            <input
-              min="1"
-              max="240"
-              type="number"
-              value={focusMinutes}
-              onChange={(event) => setFocusMinutes(event.target.value)}
-            />
-          </label>
-          <label>
-            Break minutes
-            <input
-              min="1"
-              max="120"
-              type="number"
-              value={breakMinutes}
-              onChange={(event) => setBreakMinutes(event.target.value)}
-            />
-          </label>
+      <section className="dashboard" aria-label="Pomodoro controls">
+        <div className="timer-area">
+          <div className="topline">
+            <span className={`mode-pill ${mode}`}>{mode}</span>
+            <span className={agentStatus?.online ? "agent online" : "agent offline"}>
+              Agent {agentStatus?.online ? "connected" : "offline"}
+              {agentStatus?.seconds_since_seen !== null && agentStatus?.seconds_since_seen !== undefined
+                ? ` - ${agentStatus.seconds_since_seen}s`
+                : ""}
+            </span>
+          </div>
+          <div className="timer">{formatTime(remainingTime)}</div>
+          <p className="status-line">
+            {mode === "focus" && "Restrictions active"}
+            {mode === "break" && "Break running"}
+            {mode === "idle" && "Ready when you are"}
+          </p>
         </div>
-        <div className="actions">
-          <button onClick={() => sendCommand("start")}>Start</button>
-          <button onClick={() => sendCommand("pause")}>Pause</button>
-          <button onClick={() => sendCommand("break")}>Break</button>
-          <button onClick={() => sendCommand("reset")}>Reset</button>
+
+        <div className="control-area">
+          <div className="settings">
+            <label>
+              Focus minutes
+              <input
+                min="1"
+                max="240"
+                type="number"
+                value={focusMinutes}
+                onChange={(event) => setFocusMinutes(event.target.value)}
+              />
+            </label>
+            <label>
+              Break minutes
+              <input
+                min="1"
+                max="120"
+                type="number"
+                value={breakMinutes}
+                onChange={(event) => setBreakMinutes(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="actions">
+            <button className="primary" onClick={() => sendCommand("start")}>Start Focus</button>
+            <button className="secondary" onClick={() => sendCommand("pause")}>Pause</button>
+            <button className="secondary" onClick={() => sendCommand("break")}>Start Break</button>
+            <button className="secondary" onClick={() => sendCommand("reset")}>Reset</button>
+          </div>
+
+          <div className="utility-actions">
+            <button className="sound" onClick={enableSound}>
+              {soundEnabled ? "Sound Enabled" : "Enable Sound"}
+            </button>
+            <button className="cleanup" onClick={() => sendCommand("reset")}>
+              Remove Restrictions
+            </button>
+          </div>
+          {error && <p className="error">{error}</p>}
         </div>
-        <button className="sound" onClick={enableSound}>
-          {soundEnabled ? "Sound Enabled" : "Enable Sound"}
-        </button>
-        <button className="cleanup" onClick={() => sendCommand("reset")}>
-          Remove Restrictions
-        </button>
-        {error && <p className="error">{error}</p>}
       </section>
     </main>
   );
