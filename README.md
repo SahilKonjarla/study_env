@@ -28,6 +28,8 @@ Endpoints:
 - `GET /start?focus_minutes=50&break_minutes=10` starts a 50 minute focus session followed by a 10 minute break
 - `GET /start?focus_minutes=50&break_minutes=10&repeat=true` repeats focus and break until `/pause` or `/reset`
 - `GET /pause` returns to idle and triggers cleanup through the agent
+- `GET /pause` pauses the current focus or break timer and removes restrictions through the agent
+- `GET /resume` resumes the paused focus or break timer from its remaining time
 - `GET /break` starts a 5 minute break and triggers cleanup through the agent
 - `GET /break?break_minutes=10` starts a 10 minute break
 - `GET /reset` returns to idle and triggers cleanup through the agent
@@ -35,7 +37,7 @@ Endpoints:
 - `POST /agent/heartbeat` records that the macOS agent is alive
 - `GET /agent/status` returns agent connectivity state
 
-When focus expires, the backend switches to break automatically. When break expires, the backend returns to idle unless repeat is enabled. With repeat enabled, break expiration starts the next focus cycle.
+When focus expires, the backend switches to break automatically. When break expires, the backend returns to idle unless repeat is enabled. With repeat enabled, break expiration starts the next focus cycle. Pause preserves the remaining time for the current focus or break session, and resume continues from there.
 
 State is in memory only. Restarting the backend resets it.
 

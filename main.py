@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pomodoro-backend")
 
-Mode = Literal["idle", "focus", "break"]
+Mode = Literal["idle", "focus", "break", "paused"]
 
 app = FastAPI(title="Pomodoro Control System")
 app.add_middleware(
@@ -32,6 +32,7 @@ state: Dict[str, Any] = {
     "break_duration": 300,
     "repeat_enabled": False,
     "cycle_count": 0,
+    "paused_from": None,
     "agent_last_seen": None,
     "agent_name": None,
     "agent_closed_apps": [],
@@ -53,6 +54,7 @@ def set_timer(mode: Mode, duration: int = 0) -> Dict[str, Any]:
 
 
 def start_break_timer() -> None:
+    state["paused_from"] = None
     state["mode"] = "break"
     state["duration"] = int(state["break_duration"] or 300)
     state["start_time"] = time.time()
@@ -60,6 +62,7 @@ def start_break_timer() -> None:
 
 
 def restart_focus_timer() -> None:
+    state["paused_from"] = None
     state["mode"] = "focus"
     state["duration"] = int(state["focus_duration"] or 1500)
     state["start_time"] = time.time()
@@ -76,7 +79,47 @@ def finish_break_timer() -> None:
     state["duration"] = 0
     state["start_time"] = None
     state["repeat_enabled"] = False
+    state["paused_from"] = None
     logger.info("break complete; returning to idle")
+
+
+def pause_timer() -> Dict[str, Any]:
+    current_status = status()
+    current_mode = current_status["mode"]
+    if current_mode not in ("focus", "break"):
+        logger.info("pause requested while mode=%s; leaving state unchanged", current_mode)
+        return current_status
+
+    state["paused_from"] = current_mode
+    state["mode"] = "paused"
+    state["duration"] = int(current_status["remaining_time"] or 0)
+    state["start_time"] = None
+    logger.info(
+        "timer paused paused_from=%s remaining_time=%s repeat_enabled=%s",
+        state["paused_from"],
+        state["duration"],
+        state["repeat_enabled"],
+    )
+    return status()
+
+
+def resume_timer() -> Dict[str, Any]:
+    paused_from = state["paused_from"]
+    if paused_from not in ("focus", "break"):
+        logger.info("resume requested without paused session; returning current state")
+        return status()
+
+    remaining_time = int(state["duration"] or 0)
+    if remaining_time <= 0:
+        logger.info("resume requested with no remaining time; resetting to idle")
+        state["paused_from"] = None
+        return set_timer("idle")
+
+    state["paused_from"] = None
+    state["mode"] = paused_from
+    state["start_time"] = time.time()
+    logger.info("timer resumed mode=%s remaining_time=%s", paused_from, remaining_time)
+    return status()
 
 
 def status() -> Dict[str, Any]:
@@ -85,7 +128,9 @@ def status() -> Dict[str, Any]:
     duration = int(state["duration"] or 0)
 
     remaining_time = 0
-    if mode != "idle" and start_time is not None:
+    if mode == "paused":
+        remaining_time = duration
+    elif mode in ("focus", "break") and start_time is not None:
         elapsed = int(time.time() - float(start_time))
         remaining_time = max(0, duration - elapsed)
         if mode == "focus" and remaining_time == 0:
@@ -109,6 +154,7 @@ def status() -> Dict[str, Any]:
         "break_duration": int(state["break_duration"] or 300),
         "repeat_enabled": bool(state["repeat_enabled"]),
         "cycle_count": int(state["cycle_count"] or 0),
+        "paused_from": state["paused_from"],
     }
 
 
@@ -122,13 +168,18 @@ def start(
     state["break_duration"] = minutes_to_seconds(break_minutes)
     state["repeat_enabled"] = repeat
     state["cycle_count"] = 1
+    state["paused_from"] = None
     return set_timer("focus", int(state["focus_duration"] or 1500))
 
 
 @app.get("/pause")
 def pause() -> Dict[str, Any]:
-    state["repeat_enabled"] = False
-    return set_timer("idle")
+    return pause_timer()
+
+
+@app.get("/resume")
+def resume() -> Dict[str, Any]:
+    return resume_timer()
 
 
 @app.get("/break")
@@ -137,6 +188,7 @@ def start_break(
 ) -> Dict[str, Any]:
     state["repeat_enabled"] = False
     state["break_duration"] = minutes_to_seconds(break_minutes)
+    state["paused_from"] = None
     return set_timer("break", int(state["break_duration"] or 300))
 
 
@@ -144,6 +196,7 @@ def start_break(
 def reset() -> Dict[str, Any]:
     state["repeat_enabled"] = False
     state["cycle_count"] = 0
+    state["paused_from"] = None
     return set_timer("idle")
 
 

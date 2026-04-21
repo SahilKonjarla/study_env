@@ -24,6 +24,7 @@ function App() {
   const [breakMinutes, setBreakMinutes] = useState(5);
   const [repeatEnabled, setRepeatEnabled] = useState(false);
   const [cycleCount, setCycleCount] = useState(0);
+  const [pausedFrom, setPausedFrom] = useState(null);
   const [agentStatus, setAgentStatus] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [error, setError] = useState("");
@@ -88,6 +89,7 @@ function App() {
       setRepeatEnabled(Boolean(data.repeat_enabled));
     }
     setCycleCount(data.cycle_count || 0);
+    setPausedFrom(data.paused_from || null);
     modeRef.current = nextMode;
 
     if (ALARM_TRANSITIONS.has(`${previousMode}:${nextMode}`)) {
@@ -171,6 +173,7 @@ function App() {
           <p className="status-line">
             {mode === "focus" && `Restrictions active${repeatEnabled ? ` - cycle ${cycleCount}` : ""}`}
             {mode === "break" && `Break running${repeatEnabled ? " - repeat is on" : ""}`}
+            {mode === "paused" && `Paused ${pausedFrom || "session"}${repeatEnabled ? " - repeat is on" : ""}`}
             {mode === "idle" && "Ready when you are"}
           </p>
         </div>
@@ -211,6 +214,7 @@ function App() {
           <div className="actions">
             <button className="primary" onClick={() => sendCommand("start")}>Start Focus</button>
             <button className="secondary" onClick={() => sendCommand("pause")}>Pause</button>
+            <button className="secondary" onClick={() => sendCommand("resume")}>Resume</button>
             <button className="secondary" onClick={() => sendCommand("break")}>Start Break</button>
             <button className="secondary" onClick={() => sendCommand("reset")}>Reset</button>
           </div>

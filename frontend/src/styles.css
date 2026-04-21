@@ -88,6 +88,10 @@ main {
   background: #f0b64f;
 }
 
+.mode-pill.paused {
+  background: #79a8d6;
+}
+
 .agent {
   background: #12120f;
   border: 1px solid #38342d;
