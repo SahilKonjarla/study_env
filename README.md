@@ -131,16 +131,17 @@ If your Focus is not named `Work`, set `POMODORO_FOCUS_NAME` for clearer logs an
 Apple break timer:
 
 - Create a Shortcut named `Pomodoro Start Break Timer`
-- Add the `Start Timer` action
-- Set the timer duration from `Shortcut Input`
+- Add `Get Text from Input`
+- Add `Start Timer`
+- Set the timer duration to the text from `Get Text from Input`
 
 When the agent sees a break start, it runs:
 
 ```bash
-shortcuts run "Pomodoro Start Break Timer" -i "300 seconds"
+shortcuts run "Pomodoro Start Break Timer" -i /tmp/pomodoro-break-timer-example.txt
 ```
 
-The input changes to match the break minutes selected in the frontend. If you use a different Shortcut name, set `POMODORO_BREAK_TIMER_SHORTCUT`.
+The temporary input file contains text like `300 seconds`, and that value changes to match the break minutes selected in the frontend. If you use a different Shortcut name, set `POMODORO_BREAK_TIMER_SHORTCUT`.
 
 The agent always attempts cleanup on `Ctrl+C`:
 
