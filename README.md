@@ -37,7 +37,7 @@ Endpoints:
 - `POST /agent/heartbeat` records that the macOS agent is alive
 - `GET /agent/status` returns agent connectivity state
 
-When focus expires, the backend switches to break automatically. When break expires, the backend returns to idle unless repeat is enabled. With repeat enabled, break expiration starts the next focus cycle. Pause preserves the remaining time for the current focus or break session, and resume continues from there.
+When focus expires, the backend switches to break automatically. When break expires, the backend returns to idle unless repeat is enabled. With repeat enabled, break expiration starts a 10 second `starting` countdown before the next focus cycle. Pause preserves the remaining time for the current focus or break session, and resume continues from there.
 
 State is in memory only. Restarting the backend resets it.
 
@@ -57,6 +57,7 @@ sudo POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 python3 agent.py
 - `hosts.py`: managed `/etc/hosts` block
 - `apps.py`: blocked app close/reopen logic
 - `focus.py`: macOS Focus Shortcuts
+- `timers.py`: macOS Clock timer Shortcut trigger
 - `commands.py`: subprocess helpers
 
 Optional poll interval:
@@ -127,6 +128,20 @@ POMODORO_FOCUS_ON_SHORTCUT="Your On Shortcut" POMODORO_FOCUS_OFF_SHORTCUT="Your 
 
 If your Focus is not named `Work`, set `POMODORO_FOCUS_NAME` for clearer logs and point the shortcuts at the Focus you want.
 
+Apple break timer:
+
+- Create a Shortcut named `Pomodoro Start Break Timer`
+- Add the `Start Timer` action
+- Set the timer duration from `Shortcut Input`
+
+When the agent sees a break start, it runs:
+
+```bash
+shortcuts run "Pomodoro Start Break Timer" -i "300 seconds"
+```
+
+The input changes to match the break minutes selected in the frontend. If you use a different Shortcut name, set `POMODORO_BREAK_TIMER_SHORTCUT`.
+
 The agent always attempts cleanup on `Ctrl+C`:
 
 - calls backend `/reset`
@@ -154,7 +169,7 @@ The UI also shows whether the macOS agent is connected. Use `Remove Restrictions
 
 If `VITE_API_BASE_URL` is not set, the frontend defaults to `http://127.0.0.1:8000`.
 
-The frontend has an `Enable Sound` button. Once enabled, it plays a short placeholder chime when focus changes to break or break changes to idle. A song file can be added later.
+The frontend has an `Enable Sound` button. Once enabled, it plays a prominent alarm when a timer starts, when focus changes to break, and when break ends.
 
 ## One-Command Local Run
 

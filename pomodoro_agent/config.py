@@ -41,6 +41,7 @@ FOCUS_OFF_SHORTCUTS = (
     os.environ.get("POMODORO_FOCUS_OFF_SHORTCUT") or "Pomodoro Work Focus Off",
     os.environ.get("POMODORO_DND_OFF_SHORTCUT") or "Pomodoro Focus Off",
 )
+BREAK_TIMER_SHORTCUT = os.environ.get("POMODORO_BREAK_TIMER_SHORTCUT") or "Pomodoro Start Break Timer"
 
 
 def configure_logging() -> logging.Logger:
@@ -60,3 +61,4 @@ def log_runtime_config() -> None:
     logger.info("blocked_apps=%s", ", ".join(BLOCKED_APPS) or "(none)")
     logger.info("reopen_apps=%s", ", ".join(REOPEN_APPS) or "(none)")
     logger.info("focus_name=%s", FOCUS_NAME)
+    logger.info("break_timer_shortcut=%s", BREAK_TIMER_SHORTCUT)

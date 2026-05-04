@@ -88,6 +88,10 @@ main {
   background: #f0b64f;
 }
 
+.mode-pill.starting {
+  background: #ff6f5e;
+}
+
 .mode-pill.paused {
   background: #79a8d6;
 }

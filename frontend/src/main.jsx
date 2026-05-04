@@ -3,7 +3,14 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const ALARM_TRANSITIONS = new Set(["focus:break", "break:idle", "break:focus"]);
+const ALARM_TRANSITIONS = new Set([
+  "idle:focus",
+  "idle:break",
+  "focus:break",
+  "break:idle",
+  "break:starting",
+  "starting:focus",
+]);
 
 function positiveInteger(value, fallback) {
   const number = Number.parseInt(value, 10);
@@ -50,25 +57,29 @@ function App() {
     return true;
   }
 
-  function playAlarm() {
+  async function playAlarm() {
     const audioContext = audioContextRef.current;
     if (!soundEnabled || !audioContext) {
       return;
     }
 
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
     const now = audioContext.currentTime;
-    const notes = [660, 880, 660];
+    const notes = [880, 660, 880, 660, 1046, 784, 1046, 784, 1175, 880, 1175, 880];
 
     notes.forEach((frequency, index) => {
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
-      const start = now + index * 0.22;
-      const stop = start + 0.16;
+      const start = now + index * 0.17;
+      const stop = start + 0.13;
 
-      oscillator.type = "sine";
+      oscillator.type = index % 2 === 0 ? "square" : "sawtooth";
       oscillator.frequency.setValueAtTime(frequency, start);
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.2, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.75, start + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, stop);
 
       oscillator.connect(gain);
@@ -93,7 +104,7 @@ function App() {
     modeRef.current = nextMode;
 
     if (ALARM_TRANSITIONS.has(`${previousMode}:${nextMode}`)) {
-      playAlarm();
+      void playAlarm();
     }
   }
 
@@ -135,7 +146,7 @@ function App() {
 
   async function sendCommand(command) {
     try {
-      if (command === "start" && !soundEnabled) {
+      if ((command === "start" || command === "break") && !soundEnabled) {
         await enableSound();
       }
       const response = await fetch(commandUrl(command));
@@ -161,7 +172,7 @@ function App() {
       <section className="dashboard" aria-label="Pomodoro controls">
         <div className="timer-area">
           <div className="topline">
-            <span className={`mode-pill ${mode}`}>{mode}</span>
+            <span className={`mode-pill ${mode}`}>{mode === "starting" ? "start" : mode}</span>
             <span className={agentStatus?.online ? "agent online" : "agent offline"}>
               Agent {agentStatus?.online ? "connected" : "offline"}
               {agentStatus?.seconds_since_seen !== null && agentStatus?.seconds_since_seen !== undefined
@@ -173,6 +184,7 @@ function App() {
           <p className="status-line">
             {mode === "focus" && `Restrictions active${repeatEnabled ? ` - cycle ${cycleCount}` : ""}`}
             {mode === "break" && `Break running${repeatEnabled ? " - repeat is on" : ""}`}
+            {mode === "starting" && "Start"}
             {mode === "paused" && `Paused ${pausedFrom || "session"}${repeatEnabled ? " - repeat is on" : ""}`}
             {mode === "idle" && "Ready when you are"}
           </p>

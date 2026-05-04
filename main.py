@@ -14,7 +14,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pomodoro-backend")
 
-Mode = Literal["idle", "focus", "break", "paused"]
+Mode = Literal["idle", "focus", "break", "starting", "paused"]
+START_DELAY_SECONDS = 10
 
 app = FastAPI(title="Pomodoro Control System")
 app.add_middleware(
@@ -30,6 +31,7 @@ state: Dict[str, Any] = {
     "duration": 0,
     "focus_duration": 1500,
     "break_duration": 300,
+    "start_delay_duration": START_DELAY_SECONDS,
     "repeat_enabled": False,
     "cycle_count": 0,
     "paused_from": None,
@@ -72,6 +74,14 @@ def restart_focus_timer() -> None:
         state["duration"],
         state["cycle_count"],
     )
+
+
+def start_focus_delay_timer() -> None:
+    state["paused_from"] = None
+    state["mode"] = "starting"
+    state["duration"] = int(state["start_delay_duration"] or START_DELAY_SECONDS)
+    state["start_time"] = time.time()
+    logger.info("break complete; delaying focus start duration=%s", state["duration"])
 
 
 def finish_break_timer() -> None:
@@ -130,7 +140,7 @@ def status() -> Dict[str, Any]:
     remaining_time = 0
     if mode == "paused":
         remaining_time = duration
-    elif mode in ("focus", "break") and start_time is not None:
+    elif mode in ("focus", "break", "starting") and start_time is not None:
         elapsed = int(time.time() - float(start_time))
         remaining_time = max(0, duration - elapsed)
         if mode == "focus" and remaining_time == 0:
@@ -140,18 +150,24 @@ def status() -> Dict[str, Any]:
             remaining_time = duration
         elif mode == "break" and remaining_time == 0:
             if state["repeat_enabled"]:
-                restart_focus_timer()
+                start_focus_delay_timer()
             else:
                 finish_break_timer()
             mode = state["mode"]
             duration = int(state["duration"] or 0)
             remaining_time = duration if mode != "idle" else 0
+        elif mode == "starting" and remaining_time == 0:
+            restart_focus_timer()
+            mode = state["mode"]
+            duration = int(state["duration"] or 0)
+            remaining_time = duration
 
     return {
         "mode": mode,
         "remaining_time": remaining_time,
         "focus_duration": int(state["focus_duration"] or 1500),
         "break_duration": int(state["break_duration"] or 300),
+        "start_delay_duration": int(state["start_delay_duration"] or START_DELAY_SECONDS),
         "repeat_enabled": bool(state["repeat_enabled"]),
         "cycle_count": int(state["cycle_count"] or 0),
         "paused_from": state["paused_from"],

@@ -11,6 +11,7 @@ from .commands import open_user_url, require_sudo_for_hosts
 from .config import POLL_SECONDS, log_runtime_config, logger
 from .focus import disable_focus, enable_focus, log_shortcuts_status
 from .hosts import write_hosts_block
+from .timers import start_break_timer
 
 
 last_mode: Optional[str] = None
@@ -71,7 +72,13 @@ def handle_shutdown(signum: Optional[int] = None, frame: object = None) -> None:
         sys.exit(0)
 
 
-def enforce_mode(mode: str) -> List[str]:
+def enforce_mode(mode: str, remaining_time: object = None, previous_mode: Optional[str] = None) -> List[str]:
+    if mode == "break" and previous_mode != "paused":
+        try:
+            start_break_timer(int(remaining_time or 0))
+        except Exception:
+            logger.exception("failed to start Apple break timer")
+
     if mode == "focus":
         logger.info("entering focus mode")
         return apply_focus()
@@ -128,7 +135,8 @@ def poll_loop() -> None:
         closed_apps: List[str] = []
         if mode != last_mode:
             logger.info("mode change detected previous=%s current=%s remaining_time=%s", last_mode, mode, remaining_time)
-            closed_apps = enforce_mode(mode)
+            previous_mode = last_mode
+            closed_apps = enforce_mode(mode, remaining_time=remaining_time, previous_mode=previous_mode)
             last_mode = mode
         elif mode == "focus":
             closed_apps = enforce_focus_poll()
