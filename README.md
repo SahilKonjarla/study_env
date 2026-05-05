@@ -75,13 +75,13 @@ sudo python3 agent.py --cleanup
 Focus mode:
 
 - Best-effort macOS `Work` Focus enable
-- Closes blocked apps every poll cycle. Default: `Discord`, `Messages`, `Mail`
+- Closes blocked apps every poll cycle. Default: `Discord`, `Messages`
 - Blocks `youtube.com`, `netflix.com`, `hulu.com`, and `twitch.tv` through a managed `/etc/hosts` block
 
 Customize blocked apps:
 
 ```bash
-POMODORO_BLOCKED_APPS="Discord,Messages,Mail,Steam" POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 scripts/run_mac_for_pi.sh
+POMODORO_BLOCKED_APPS="Discord,Messages,Steam" POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 scripts/run_mac_for_pi.sh
 ```
 
 Use exact macOS process names. The agent checks the list during focus mode and closes matching apps again if you reopen them.
@@ -91,7 +91,7 @@ When focus ends, the agent reopens the apps in `POMODORO_REOPEN_APPS`. By defaul
 Customize reopen apps:
 
 ```bash
-POMODORO_BLOCKED_APPS="Discord,Messages,Mail" POMODORO_REOPEN_APPS="Messages,Mail" POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 scripts/run_mac_for_pi.sh
+POMODORO_BLOCKED_APPS="Discord,Messages" POMODORO_REOPEN_APPS="Messages" POMODORO_BACKEND_URL=http://PI_IP_ADDRESS:8000 scripts/run_mac_for_pi.sh
 ```
 
 Idle, pause, reset, and break:

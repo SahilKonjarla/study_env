@@ -23,7 +23,7 @@ BLOCKED_DOMAINS = (
 
 BLOCKED_APPS = tuple(
     app.strip()
-    for app in os.environ.get("POMODORO_BLOCKED_APPS", "Discord,Messages,Mail").split(",")
+    for app in os.environ.get("POMODORO_BLOCKED_APPS", "Discord,Messages").split(",")
     if app.strip()
 )
 REOPEN_APPS = tuple(
